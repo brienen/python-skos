@@ -25,10 +25,10 @@ class TestCommand(Command):
 
 setup(name='python-skos',
       version=__version__,
-      description='A basic implementation of some core elements of the SKOS object model',
-      author='Homme Zwaagstra',
-      author_email='hrz@geodata.soton.ac.uk',
-      url='http://github.com/geo-data/python-skos',
+      description='A basic implementation of some core elements of the SKOS object model cloned from Homme Zwaagstra',
+      author='Arjen Brienen',
+      author_email='brienen@e-space.nl',
+      url='https://github.com/brienen/python-skos',
       license='BSD',
       py_modules=['skos'],
       cmdclass = { 'test': TestCommand }

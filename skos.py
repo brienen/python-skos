@@ -224,6 +224,7 @@ from sqlalchemy.orm import relationship, backref, synonym
 from sqlalchemy.orm.collections import collection
 import collections
 import logging
+import iso8601
 
 logger = logging.getLogger(__name__)
 
@@ -325,7 +326,7 @@ def _create_attribute_mapping(name):
 
             try:
                 return self._right[key]
-            except KeyError, e:
+            except KeyError as e:
                 raise e
 
         def __delitem__(self, key):
@@ -339,7 +340,7 @@ def _create_attribute_mapping(name):
 
             try:
                 del self._right[key]
-            except KeyError, e:
+            except KeyError as e:
                 if not deleted:
                     raise e
 
@@ -421,7 +422,7 @@ class Concepts(collections.Mapping, collections.MutableSet):
         if not isinstance(concepts, collections.Mapping):
             iterator = iter(concepts)
         else:
-            iterator = concepts.itervalues()
+            iterator = concepts.values()
         for value in iterator:
             self.add(value)
 
@@ -451,8 +452,8 @@ class InstrumentedConcepts(Concepts):
     # <http://docs.sqlalchemy.org/en/latest/orm/collections.html#instrumentation-and-custom-types>.
 
     @collection.iterator
-    def itervalues(self):
-        return super(InstrumentedConcepts, self).itervalues()
+    def values(self):
+        return super(InstrumentedConcepts, self).values()
 
     @collection.appender
     def add(self, *args, **kwargs):
@@ -473,7 +474,7 @@ class InstrumentedConcepts(Concepts):
         """
         if not isinstance(concepts, collections.Mapping):
             return iter(concepts)
-        return concepts.itervalues()
+        return concepts.values()
 
 
 _Synonyms = _create_attribute_mapping('synonyms')
@@ -767,12 +768,12 @@ class RDFLoader(collections.Mapping):
             # Check for a preferredLabel in our desired language
             label_list = graph.preferredLabel(subject, lang=lang, default=default_label)
 
-            label = unicode(label_list[0][1].value)
+            label = label_list[0][1].value.encode('utf-8')
 
             defn = self._get_value_for_lang(graph, subject, definition, lang)
             alt = self._get_value_for_lang(graph, subject, altLabel, lang)
 
-            notn = unicode(graph.value(subject=subject, predicate=notation))
+            notn = graph.value(subject=subject, predicate=notation).encode('utf-8') if graph.value(subject=subject, predicate=notation) else None
 
             debug('creating Concept %s', uri)
             cache[uri] = Concept(uri, label, defn, notn, alt)
@@ -785,7 +786,7 @@ class RDFLoader(collections.Mapping):
             rdflib.URIRef('http://www.w3.org/2004/02/skos/core#exactMatch'): 'synonyms',
             rdflib.URIRef('http://www.w3.org/2006/12/owl2-xml#sameAs'): 'synonyms'
             }
-        for predicate, attr in attrs.iteritems():
+        for predicate, attr in attrs.items():
             for subject, object_ in graph.subject_objects(predicate=predicate):
                 try:
                     match = cache[normalise_uri(object_)]
@@ -806,8 +807,8 @@ class RDFLoader(collections.Mapping):
         for subject in self._iterateType(graph, 'Collection'):
             uri = normalise_uri(subject)
             # create the basic concept
-            title = unicode(self._valueFromPredicates(graph, subject, pred_titles))
-            description = unicode(self._valueFromPredicates(graph, subject, pred_descriptions))
+            title = self._valueFromPredicates(graph, subject, pred_titles).encode('utf-8')
+            description = self._valueFromPredicates(graph, subject, pred_descriptions).encode('utf-8')
             date = self._dcDateToDatetime(self._valueFromPredicates(graph, subject, pred_dates))
             debug('creating Collection %s', uri)
             cache[uri] = Collection(uri, title, description, date)
@@ -841,8 +842,8 @@ class RDFLoader(collections.Mapping):
         for subject in self._iterateType(graph, 'ConceptScheme'):
             uri = normalise_uri(subject)
             # create the basic concept
-            title = unicode(self._valueFromPredicates(graph, subject, pred_titles))
-            description = unicode(self._valueFromPredicates(graph, subject, pred_descriptions))
+            title = self._valueFromPredicates(graph, subject, pred_titles).encode('utf-8')
+            description = self._valueFromPredicates(graph, subject, pred_descriptions).encode('utf-8')
             debug('creating ConceptScheme %s', uri)
             cache[uri] = ConceptScheme(uri, title, description)
             schemes.add(uri)
@@ -947,23 +948,23 @@ class RDFBuilder(object):
         graph.add((node, self.SKOS['definition'], rdflib.Literal(concept.definition)))
         graph.add((node, self.SKOS['altLabel'], rdflib.Literal(concept.altLabel)))
 
-        for uri, synonym in concept.synonyms.iteritems():
+        for uri, synonym in concept.synonyms.items():
             graph.add((node, self.SKOS['exactMatch'], rdflib.URIRef(uri)))
             self.buildConcept(graph, synonym)
 
-        for uri, related in concept.related.iteritems():
+        for uri, related in concept.related.items():
             graph.add((node, self.SKOS['related'], rdflib.URIRef(uri)))
             self.buildConcept(graph, related)
 
-        for uri, broader in concept.broader.iteritems():
+        for uri, broader in concept.broader.items():
             graph.add((node, self.SKOS['broader'], rdflib.URIRef(uri)))
             self.buildConcept(graph, broader)
 
-        for uri, narrower in concept.narrower.iteritems():
+        for uri, narrower in concept.narrower.items():
             graph.add((node, self.SKOS['narrower'], rdflib.URIRef(uri)))
             self.buildConcept(graph, narrower)
 
-        for collection in concept.collections.itervalues():
+        for collection in concept.collections.values():
             self.buildCollection(graph, collection)
 
     def buildCollection(self, graph, collection):
@@ -984,7 +985,7 @@ class RDFBuilder(object):
         else:
             graph.add((node, self.DC['date'], rdflib.Literal(date)))
 
-        for uri, member in collection.members.iteritems():
+        for uri, member in collection.members.items():
             graph.add((node, self.SKOS['member'], rdflib.URIRef(uri)))
             self.buildConcept(graph, member)
 
